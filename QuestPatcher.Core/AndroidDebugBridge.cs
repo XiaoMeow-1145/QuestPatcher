@@ -267,7 +267,8 @@ namespace QuestPatcher.Core
         private async Task<List<AdbDevice>> GetDevicesInPreferredOrder()
         {
             return (await ListDevices()).OrderBy(device =>
-                device.Id.Contains("quest", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                device.Id.Contains("quest", StringComparison.OrdinalIgnoreCase) || 
+                device.Id.Contains("yvr", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
                 .ToList();
         }
 
@@ -411,7 +412,7 @@ namespace QuestPatcher.Core
 
                 string allOutput = (output.StandardOutput + output.ErrorOutput).Trim();
 
-                // We repeatedly prompt the user to plug in their quest if it is not plugged in, or the device is offline
+                // We repeatedly prompt the user to plug in their VR headset if it is not plugged in, or the device is offline
                 if (allOutput.Contains("device offline"))
                 {
                     if (!await _prompter.PromptAdbDisconnect(DisconnectionType.DeviceOffline)) _quit();
