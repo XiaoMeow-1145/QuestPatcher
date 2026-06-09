@@ -480,10 +480,51 @@ namespace QuestPatcher.Core
 
         public async Task DownloadApk(string packageId, string destination)
         {
-            // Pull the path of the app from the Android package manager, then remove the formatting that ADB adds
-            string rawAppPath = (await RunShellCommand($"pm path {packageId}")).StandardOutput;
-            string appPath = rawAppPath.Remove(0, 8).Replace("\n", "").Replace("'", "").Replace("\r", "");
-
+            // Try multiple methods to get the APK path, starting with pm path
+            string? appPath = null;
+            
+            try
+            {
+                // First, try the traditional pm path method
+                string rawAppPath = (await RunShellCommand($"pm path {packageId}")).StandardOutput;
+                appPath = rawAppPath.Remove(0, 8).Replace("\n", "").Replace("'", "").Replace("\r", "");
+                
+                // If the path starts with /data/app/ (protected path), try alternative approach
+                if (appPath.StartsWith("/data/app/") && (
+                    packageId.Contains("yvr", StringComparison.OrdinalIgnoreCase) ||
+                    packageId.Contains("quest", StringComparison.OrdinalIgnoreCase)))
+                {
+                    // For YVR/Quest devices, try using cmd package to get better accessible path
+                    string cmdOutput = (await RunShellCommand($"cmd package path {packageId}")).StandardOutput;
+                    if (!string.IsNullOrEmpty(cmdOutput) && cmdOutput.Contains("package:"))
+                    {
+                        appPath = cmdOutput.Replace("package:", "").Trim().Replace("'", "").Replace("\n", "").Replace("\r", "");
+                    }
+                }
+            }
+            catch (AdbException)
+            {
+                // If pm path fails, try cmd package path as fallback
+                try
+                {
+                    string cmdOutput = (await RunShellCommand($"cmd package path {packageId}")).StandardOutput;
+                    if (!string.IsNullOrEmpty(cmdOutput) && cmdOutput.Contains("package:"))
+                    {
+                        appPath = cmdOutput.Replace("package:", "").Trim().Replace("'", "").Replace("\n", "").Replace("\r", "");
+                    }
+                }
+                catch (AdbException)
+                {
+                    // If both methods fail, rethrow the original exception
+                    throw;
+                }
+            }
+            
+            if (string.IsNullOrEmpty(appPath))
+            {
+                throw new AdbException($"Could not determine APK path for package {packageId}");
+            }
+            
             await DownloadFile(appPath, destination);
         }
 

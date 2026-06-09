@@ -135,12 +135,51 @@ namespace QuestPatcher.Core
 
         /// <summary>
         /// Loads the currently installed APK from the Quest, and checks if it is patched.
+        /// First tries to locate APK in a predefined directory, then downloads from device if not found.
         /// </summary>
         /// <exception cref="PatchingException">If the APK contained no 32-bit or 64-bit il2cpp.so, and so is not valid for use by QuestPatcher</exception>
         public async Task LoadInstalledApp()
         {
-            Log.Information("Downloading APK from the Quest . . .");
-            await _debugBridge.DownloadApk(_config.AppId, _currentlyInstalledPath);
+            Log.Information("Attempting to locate APK in predefined directory or downloading from the Quest . . .");
+            
+            // Try to locate the APK in a predefined directory first
+            bool apkFound = false;
+            string packageName = _config.AppId;
+            string apkFileName = $"{packageName}.apk"; // Standard naming
+            
+            // Common locations to look for manually placed APKs
+            string[] searchPaths = {
+                $"/sdcard/bsapk/{apkFileName}",
+                $"/storage/emulated/0/bsapk/{apkFileName}",
+                $"/sdcard/Download/{apkFileName}",
+                $"/storage/emulated/0/Download/{apkFileName}"
+            };
+            
+            foreach (string apkPath in searchPaths)
+            {
+                try
+                {
+                    if (await _debugBridge.Exists(apkPath))
+                    {
+                        Log.Information($"Found APK at {apkPath}, copying to local cache...");
+                        await _debugBridge.DownloadFile(apkPath, _currentlyInstalledPath);
+                        apkFound = true;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Debug($"Could not check path {apkPath}: {ex.Message}");
+                    // Continue to next path
+                }
+            }
+            
+            // If APK wasn't found in predefined locations, download from the device
+            if (!apkFound)
+            {
+                Log.Information("APK not found in predefined locations, attempting to download from device...");
+                await _debugBridge.DownloadApk(_config.AppId, _currentlyInstalledPath);
+            }
 
             await CheckModdingStatus();
         }
