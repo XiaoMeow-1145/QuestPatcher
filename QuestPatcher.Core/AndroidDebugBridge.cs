@@ -483,10 +483,10 @@ namespace QuestPatcher.Core
             // Directly look for APK in bsapk folder first, which is the preferred location
             string apkFileName = $"{packageId}.apk";
             string[] searchPaths = {
-                $"/sdcard/bsapk/{apkFileName}",
                 $"/storage/emulated/0/bsapk/{apkFileName}",
-                $"/sdcard/Download/{apkFileName}",
-                $"/storage/emulated/0/Download/{apkFileName}"
+                $"/sdcard/bsapk/{apkFileName}",
+                $"/storage/emulated/0/Download/{apkFileName}",
+                $"/sdcard/Download/{apkFileName}"
             };
             
             string? appPath = null;
@@ -545,7 +545,7 @@ namespace QuestPatcher.Core
                 catch (AdbException ex)
                 {
                     Log.Warning($"Could not download APK from device: {ex.Message}");
-                    throw new AdbException($"Could not find APK in predefined locations or on device. Please place {apkFileName} in /sdcard/bsapk/ folder.");
+                    throw new AdbException($"Could not find APK in predefined locations or on device. Please place {apkFileName} in /sdcard/bsapk/ folder on your YVR device.");
                 }
             }
             

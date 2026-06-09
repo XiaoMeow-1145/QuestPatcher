@@ -149,10 +149,10 @@ namespace QuestPatcher.Core
             
             // Common locations to look for manually placed APKs
             string[] searchPaths = {
-                $"/sdcard/bsapk/{apkFileName}",
                 $"/storage/emulated/0/bsapk/{apkFileName}",
-                $"/sdcard/Download/{apkFileName}",
-                $"/storage/emulated/0/Download/{apkFileName}"
+                $"/sdcard/bsapk/{apkFileName}",
+                $"/storage/emulated/0/Download/{apkFileName}",
+                $"/sdcard/Download/{apkFileName}"
             };
             
             foreach (string apkPath in searchPaths)
