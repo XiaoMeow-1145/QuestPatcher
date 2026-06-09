@@ -267,7 +267,8 @@ namespace QuestPatcher.Core
         private async Task<List<AdbDevice>> GetDevicesInPreferredOrder()
         {
             return (await ListDevices()).OrderBy(device =>
-                device.Id.Contains("quest", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
+                device.Id.Contains("quest", StringComparison.OrdinalIgnoreCase) || 
+                device.Id.Contains("yvr", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
                 .ToList();
         }
 
@@ -411,7 +412,7 @@ namespace QuestPatcher.Core
 
                 string allOutput = (output.StandardOutput + output.ErrorOutput).Trim();
 
-                // We repeatedly prompt the user to plug in their quest if it is not plugged in, or the device is offline
+                // We repeatedly prompt the user to plug in their VR headset if it is not plugged in, or the device is offline
                 if (allOutput.Contains("device offline"))
                 {
                     if (!await _prompter.PromptAdbDisconnect(DisconnectionType.DeviceOffline)) _quit();
@@ -479,10 +480,80 @@ namespace QuestPatcher.Core
 
         public async Task DownloadApk(string packageId, string destination)
         {
-            // Pull the path of the app from the Android package manager, then remove the formatting that ADB adds
-            string rawAppPath = (await RunShellCommand($"pm path {packageId}")).StandardOutput;
-            string appPath = rawAppPath.Remove(0, 8).Replace("\n", "").Replace("'", "").Replace("\r", "");
-
+            // Directly look for APK in bsapk folder first, which is the preferred location
+            string apkFileName = $"{packageId}.apk";
+            string[] searchPaths = {
+                $"/sdcard/bsapk/{apkFileName}",
+                $"/storage/emulated/0/bsapk/{apkFileName}",
+                $"/sdcard/Download/{apkFileName}",
+                $"/storage/emulated/0/Download/{apkFileName}"
+            };
+            
+            string? appPath = null;
+            
+            // Look for APK in predefined directories first
+            foreach (string path in searchPaths)
+            {
+                try
+                {
+                    if (await Exists(path))
+                    {
+                        appPath = path;
+                        Log.Information($"Found APK at predefined location: {path}");
+                        break;
+                    }
+                }
+                catch
+                {
+                    // Continue to next path if current path check fails
+                }
+            }
+            
+            // If APK not found in predefined locations, fall back to device download
+            if (string.IsNullOrEmpty(appPath))
+            {
+                Log.Information("APK not found in predefined locations, attempting to download from device...");
+                
+                try
+                {
+                    // First, try the traditional pm path method
+                    string rawAppPath = (await RunShellCommand($"pm path {packageId}")).StandardOutput;
+                    string tempAppPath = rawAppPath.Remove(0, 8).Replace("\n", "").Replace("'", "").Replace("\r", "");
+                    
+                    // If path is not protected, use it; otherwise try cmd package path
+                    if (!tempAppPath.StartsWith("/data/app/"))
+                    {
+                        appPath = tempAppPath;
+                    }
+                    else
+                    {
+                        // Try cmd package path as it might give a more accessible path
+                        string cmdOutput = (await RunShellCommand($"cmd package path {packageId}")).StandardOutput;
+                        if (!string.IsNullOrEmpty(cmdOutput) && cmdOutput.Contains("package:"))
+                        {
+                            appPath = cmdOutput.Replace("package:", "").Trim().Replace("'", "").Replace("\n", "").Replace("\r", "");
+                            
+                            // If cmd package path also returns a protected path, it means we have to handle the permission error
+                            if (appPath.StartsWith("/data/app/"))
+                            {
+                                Log.Warning($"Only protected path found for {packageId}, make sure to place the APK in /sdcard/bsapk/ folder");
+                                throw new AdbException($"Permission denied accessing protected path: {appPath}. Place the APK in /sdcard/bsapk/ folder instead.");
+                            }
+                        }
+                    }
+                }
+                catch (AdbException ex)
+                {
+                    Log.Warning($"Could not download APK from device: {ex.Message}");
+                    throw new AdbException($"Could not find APK in predefined locations or on device. Please place {apkFileName} in /sdcard/bsapk/ folder.");
+                }
+            }
+            
+            if (string.IsNullOrEmpty(appPath))
+            {
+                throw new AdbException($"Could not determine APK path for package {packageId}");
+            }
+            
             await DownloadFile(appPath, destination);
         }
 
