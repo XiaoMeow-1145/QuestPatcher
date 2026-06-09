@@ -515,8 +515,37 @@ namespace QuestPatcher.Core
                 }
                 catch (AdbException)
                 {
-                    // If both methods fail, rethrow the original exception
-                    throw;
+                    // If both methods fail, try to look in predefined directories as a fallback
+                    string apkFileName = $"{packageId}.apk";
+                    string[] searchPaths = {
+                        $"/sdcard/bsapk/{apkFileName}",
+                        $"/storage/emulated/0/bsapk/{apkFileName}",
+                        $"/sdcard/Download/{apkFileName}",
+                        $"/storage/emulated/0/Download/{apkFileName}"
+                    };
+                    
+                    foreach (string path in searchPaths)
+                    {
+                        try
+                        {
+                            if (await Exists(path))
+                            {
+                                appPath = path;
+                                Log.Information($"Found APK at fallback location: {path}");
+                                break;
+                            }
+                        }
+                        catch
+                        {
+                            // Continue to next path if current path check fails
+                        }
+                    }
+                    
+                    if (string.IsNullOrEmpty(appPath))
+                    {
+                        // If all methods fail, rethrow the original exception
+                        throw;
+                    }
                 }
             }
             
