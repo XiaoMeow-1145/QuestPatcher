@@ -268,6 +268,8 @@ namespace QuestPatcher.Core
         {
             return (await ListDevices()).OrderBy(device =>
                 device.Id.Contains("quest", StringComparison.OrdinalIgnoreCase) || 
+                device.Id.Contains("pico", StringComparison.OrdinalIgnoreCase) || 
+                device.Id.Contains("iqyiy", StringComparison.OrdinalIgnoreCase) || 
                 device.Id.Contains("yvr", StringComparison.OrdinalIgnoreCase) ? 1 : 0)
                 .ToList();
         }
