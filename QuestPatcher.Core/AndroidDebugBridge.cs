@@ -496,9 +496,38 @@ namespace QuestPatcher.Core
                 {
                     // For YVR/Quest devices, try using cmd package to get better accessible path
                     string cmdOutput = (await RunShellCommand($"cmd package path {packageId}")).StandardOutput;
-                    if (!string.IsNullOrEmpty(cmdOutput) && cmdOutput.Contains("package:"))
+                    if (!string.IsNullOrEmpty(cmdOutput) && cmdOutput.Contains("package:") && !cmdOutput.Contains("/data/app/"))
                     {
                         appPath = cmdOutput.Replace("package:", "").Trim().Replace("'", "").Replace("\n", "").Replace("\r", "");
+                    }
+                    // If cmd package path also returns a protected path, try predefined directories
+                    else if (cmdOutput.Contains("/data/app/"))
+                    {
+                        // Look for APK in predefined directories
+                        string apkFileName = $"{packageId}.apk";
+                        string[] searchPaths = {
+                            $"/sdcard/bsapk/{apkFileName}",
+                            $"/storage/emulated/0/bsapk/{apkFileName}",
+                            $"/sdcard/Download/{apkFileName}",
+                            $"/storage/emulated/0/Download/{apkFileName}"
+                        };
+                        
+                        foreach (string path in searchPaths)
+                        {
+                            try
+                            {
+                                if (await Exists(path))
+                                {
+                                    appPath = path;
+                                    Log.Information($"Found APK at predefined location: {path}");
+                                    break;
+                                }
+                            }
+                            catch
+                            {
+                                // Continue to next path if current path check fails
+                            }
+                        }
                     }
                 }
             }
